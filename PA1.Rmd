@@ -1,0 +1,158 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(plyr)
+setwd("/home/syed/Desktop/R-programming/Week5-ReproducibleReserach/Week2")
+```
+
+## Loading and preprocessing the data
+```{r}
+myData <- read.csv("activity.csv")
+str(myData)
+```
+## What is mean total number of steps taken per day?
+####1.) Calculating the total number of steps taken per day:
+```{r myData, echo=TRUE}
+steps_per_day <- ddply(myData, .(date), summarize, totalSteps = as.numeric(sum(steps)))
+#steps_per_day
+```
+
+####2.) Histogram of the total number of steps taken each day:
+```{r, echo=TRUE}
+hist(steps_per_day$totalSteps,xlab = "Steps per day", ylab = "Frequency",main = "Distribution of steps taken per day")
+```
+
+####3.) Calculating mean and median of the total number of steps taken per day:
+```{r, echo=TRUE}
+mean_steps_per_day <- ddply(myData, .(date), summarize, meanSteps = round(as.numeric(mean(steps)),2))
+median_steps_per_day <- ddply(myData, .(date), summarize, medianSteps = round(as.numeric(median(steps)),2))
+
+nRows=1:nrow(mean_steps_per_day)
+
+initialFlag<-0
+for(i in nRows+1){ 
+  X<-paste(i-1,"\t",mean_steps_per_day$date[i-1],"\t",mean_steps_per_day$meanSteps[i-1],"\t\t\t\t",median_steps_per_day$medianSteps[i-1],"\n")
+  
+  if(initialFlag ==0 ){
+      cat("Day\t","Date\t\t\t","Mean steps per day\t","Median steps per day\n")
+      initialFlag <- 99
+      cat(X)
+  }
+  else
+      cat(X)
+}
+```
+
+## What is the average daily activity pattern?
+####1.) Time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r, echo=TRUE}
+plot(mean_steps_per_day$meanSteps,type="l",xlab = "Day", ylab = "Average number of steps taken",main = "Time series plot")
+```
+
+Note that the missing points are seen as missing points/lines in the above plot.
+
+####2.) Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+Day 53 (2012-11-23) has the maximum average which is 73.59.
+
+## Imputing missing values
+####1.) Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r, echo=TRUE}
+
+nRows=1:nrow(myData)
+
+NACounter<-sum(is.na(myData$steps))
+cat("Number of missing values in the dataset: ",NACounter)
+```
+
+####2.) Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+Here I will replace the NAs with 0 to represent "no activity performed".
+
+####3.) Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r, echo=TRUE}
+myNewData <- myData
+myNewData[is.na(myNewData)] <- 0
+```
+
+####4.) Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r, echo=TRUE}
+steps_per_day <- ddply(myNewData, .(date), summarize, totalSteps = as.numeric(sum(steps)))
+hist(steps_per_day$totalSteps,xlab = "Steps per day", ylab = "Frequency",main = "Distribution of steps taken per day of the new data set")
+
+mean_steps_per_day <- ddply(myNewData, .(date), summarize, meanSteps = round(as.numeric(mean(steps)),2))
+median_steps_per_day <- ddply(myNewData, .(date), summarize, medianSteps = round(as.numeric(median(steps)),2))
+
+nRows=1:nrow(mean_steps_per_day)
+
+initialFlag<-0
+for(i in nRows+1){
+  X<-paste(i-1,"\t",mean_steps_per_day$date[i-1],"\t",mean_steps_per_day$meanSteps[i-1],"\t\t\t\t\t\t\t\t\t\t",median_steps_per_day$medianSteps[i-1],"\n")
+  if(initialFlag == 0){
+      cat("Day\t","Date\t\t\t","Mean steps per day for the new dataset\t","Median steps per day for the new dataset\n")
+      initialFlag <- 99
+      cat(X)
+  }
+  else
+      cat(X)
+}
+```
+The impact of imputing NAs with 0 changed the skewness of the histogram in its lower tail representing more no-activity data.
+
+## Are there differences in activity patterns between weekdays and weekends?
+For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+1.) Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r, echo=TRUE}
+myNewData$date <- as.Date((myNewData$date))
+myWeekdays <- c('måndag','tisdag','onsdag','torsdag','fredag')
+#Use `%in%` and `weekdays` to create a logical vector
+#convert to `factor` and specify the `levels/labels`
+myNewData$dayType <- factor((weekdays(myNewData$date) %in% myWeekdays), levels=c(FALSE, TRUE), labels=c('weekend', 'weekday'))
+summary(myNewData$dayType)
+```
+
+2.) Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+```{r, echo=TRUE}
+myWeekends <- subset(myNewData,dayType=='weekend')
+myWeekdays <- subset(myNewData,dayType=='weekday')
+
+#splitting df w.r.t date to create data frames of each day separately
+myWeekends_split<-split(myWeekends, as.Date(myWeekends$date))
+myWeekdays_split<-split(myWeekdays, as.Date(myWeekdays$date))
+
+#merging weekends and extracting steps and intervals to compute mean steps
+merged_dF_weekends=rbind(myWeekends_split)
+weekendsDF<-(sapply(merged_dF_weekends, function(x){x[1]}))
+intervals<-(sapply(merged_dF_weekends, function(x){x[3]}))
+weekendsDF<-do.call(cbind,weekendsDF)
+weekendsDF<-rowMeans(weekendsDF)
+weekendsDF<-cbind(weekendsDF,intervals[1]$interval)
+weekendsDF<-data.frame(weekendsDF)
+colnames(weekendsDF)<- c("weekends","interval")
+
+#merging weekdays and extracting steps and intervals to compute mean steps
+merged_dF_weekdays=rbind(myWeekdays_split)
+weekdaysDF<-(sapply(merged_dF_weekdays, function(x){x[1]}))
+intervals<-(sapply(merged_dF_weekdays, function(x){x[3]}))
+weekdaysDF<-do.call(cbind,weekdaysDF)
+weekdaysDF<-rowMeans(weekdaysDF)
+weekdaysDF<-cbind(weekdaysDF,intervals[1]$interval)
+weekdaysDF<-data.frame(weekdaysDF)
+colnames(weekdaysDF)<- c("weekdays","interval")
+
+merged_dF <- merge(weekendsDF, weekdaysDF, by = "interval")
+
+require(gridExtra)
+plot1<-qplot(interval, weekdays, data = merged_dF,geom = c("line"),xlab = "Interval",ylab="Mean steps of all days",main="Weekdays")
+plot2<-qplot(interval, weekends, data = merged_dF,geom = c("line"),xlab = "Interval",ylab="Mean steps of all days",main="Weekends")
+grid.arrange(plot1, plot2, nrow=2)
+```
